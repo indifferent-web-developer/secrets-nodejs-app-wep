@@ -31,7 +31,8 @@ const userSchema = new mongoose.Schema({
     email: String,
     password: String,
     googleId: String,
-    facebookId: String
+    facebookId: String,
+    secret: String
 });
 
 userSchema.plugin(passportLocalMongoose);
@@ -61,7 +62,7 @@ passport.use(
     {
       clientID: process.env.FACEBOOK_CLIENT_ID,
       clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
-      callbackURL: 'http://localhost:3000/auth/facebook/callback',
+      callbackURL: 'http://localhost:3000/auth/facebook/secrets',
     },
     function (accessToken, refreshToken, profile, cb) {
       User.findOrCreate({ facebookId: profile.id }, function (err, user) {
@@ -100,7 +101,7 @@ app.get(
 app.get('/auth/facebook', passport.authenticate('facebook'));
 
 app.get(
-  '/auth/facebook/callback',
+  '/auth/facebook/secrets',
   passport.authenticate('facebook', { failureRedirect: '/login' }),
   function (req, res) {
     // Successful authentication, redirect to secrets.
@@ -117,18 +118,47 @@ app.get("/register",(req,res)=>{
 });
 
 app.get("/secrets",(req,res)=>{
-    if(req.isAuthenticated()){
-        res.render("secrets");
+    User.find({"secret":{$ne : null}},(err,foundUsers)=>{
+      if(err){
+        console.log(err);
+      } else {
+        if (foundUsers){
+          res.render("secrets",{usersWithSecret:foundUsers});
+        }
+      }
+    });
+});
+
+app.get("/submit",(req,res)=>{
+  if(req.isAuthenticated()){
+    res.render("submit");
+  } else {
+    res.redirect("/login");
+  }
+});
+
+app.post("/submit",(req,res)=>{
+  const submittedSecret = req.body.secret;
+  User.findById(req.user.id,(err,foundUser)=>{
+    if(err){
+      console.log(err);
     } else {
-        res.redirect("/login");
+      if(foundUser){
+        foundUser.secret = submittedSecret;
+        foundUser.save((err)=>{
+          if(!err){
+            res.redirect("/secrets")
+          }
+        });
+      }
     }
+  });
 });
 
 app.get("/logout",(req,res)=>{
     req.logOut();
     res.redirect("/")
-})
-
+});
 
 app.post("/register",(req,res)=>{
     
